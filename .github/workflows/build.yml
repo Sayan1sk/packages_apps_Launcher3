@@ -19,6 +19,7 @@ jobs:
 
     steps:
       - name: Free disk space
+        shell: bash
         run: |
           sudo rm -rf /usr/local/lib/android
           sudo rm -rf /usr/share/dotnet
@@ -26,10 +27,10 @@ jobs:
           sudo apt-get clean
 
       - name: Install dependencies
+        shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            adb \
             bc \
             bison \
             build-essential \
@@ -42,35 +43,25 @@ jobs:
             git-lfs \
             gnupg \
             gperf \
-            imagemagick \
             lib32ncurses6 \
             lib32readline-dev \
             lib32z1 \
             libc6-dev-i386 \
             libelf-dev \
             liblz4-tool \
-            libncurses5 \
-            libncurses6 \
             libncurses-dev \
             libssl-dev \
             lz4 \
             openjdk-17-jdk \
-            pngcrush \
             python3 \
-            python3-pip \
             rsync \
             unzip \
             xsltproc \
             zip \
             zlib1g-dev
 
-      - name: Configure Git
-        run: |
-          git config --global user.name "github-actions"
-          git config --global user.email "github-actions@github.com"
-          git lfs install
-
-      - name: Install repo tool
+      - name: Install repo
+        shell: bash
         run: |
           mkdir -p "$HOME/bin"
 
@@ -82,14 +73,8 @@ jobs:
 
           echo "$HOME/bin" >> "$GITHUB_PATH"
 
-      - name: Check toolchain
-        run: |
-          java -version
-          python3 --version
-          git --version
-          repo --version
-
-      - name: Initialize MistOS source
+      - name: Initialize source
+        shell: bash
         run: |
           mkdir -p "$GITHUB_WORKSPACE/rom"
           cd "$GITHUB_WORKSPACE/rom"
@@ -97,20 +82,20 @@ jobs:
           repo init \
             -u "$ROM_MANIFEST" \
             -b "$ROM_BRANCH" \
-            --depth=1 \
-            --no-repo-verify
+            --depth=1
 
-      - name: Sync Android source
+      - name: Sync source
+        shell: bash
         working-directory: rom
         run: |
           repo sync \
             --force-sync \
             --no-clone-bundle \
             --no-tags \
-            --optimized-fetch \
             -j2
 
-      - name: Replace Launcher3 with your source
+      - name: Replace Launcher3
+        shell: bash
         working-directory: rom
         run: |
           rm -rf packages/apps/Launcher3
@@ -123,7 +108,8 @@ jobs:
 
           rm -rf packages/apps/Launcher3/.git
 
-      - name: Verify Launcher3 source
+      - name: Verify Launcher3
+        shell: bash
         working-directory: rom
         run: |
           test -f packages/apps/Launcher3/Android.bp
@@ -133,19 +119,28 @@ jobs:
           echo "Launcher3 source:"
           du -sh packages/apps/Launcher3
 
-          echo "Android.bp:"
-          grep -n 'name: "Launcher3QuickStep"' \
-            packages/apps/Launcher3/quickstep/../Android.bp \
-            packages/apps/Launcher3/Android.bp || true
-
-      - name: Setup build environment
+      - name: Load Android build environment
+        shell: bash
         working-directory: rom
         run: |
           source build/envsetup.sh
 
-          echo "Build environment loaded."
+          echo "Available lunch targets:"
+          lunch --help || true
 
-          lunch
+      - name: Stop and show build targets
+        shell: bash
+        working-directory: rom
+        run: |
+          source build/envsetup.sh
+          lunch --list
 
       - name: Build Launcher3QuickStep
-       
+        shell: bash
+        working-directory: rom
+        run: |
+          source build/envsetup.sh
+
+          echo "A device lunch target must be selected before building."
+          echo "Set the correct target for your device in this workflow."
+          exit 1
