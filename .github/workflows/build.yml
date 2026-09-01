@@ -1,0 +1,79 @@
+name: Build Launcher3
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - "16.2"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Launcher3
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Show source
+        run: |
+          echo "Launcher3 source:"
+          pwd
+          ls -la
+          test -f Android.bp
+          test -f AndroidManifest.xml
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            git \
+            git-lfs \
+            python3 \
+            unzip \
+            zip \
+            rsync \
+            bc \
+            bison \
+            build-essential \
+            flex \
+            gperf \
+            libxml2-utils \
+            lz4 \
+            libncurses5 \
+            libssl-dev \
+            libelf-dev \
+            openjdk-17-jdk
+
+      - name: Install repo
+        run: |
+          mkdir -p "$HOME/bin"
+          curl https://storage.googleapis.com/git-repo-downloads/repo \
+            -o "$HOME/bin/repo"
+          chmod a+x "$HOME/bin/repo"
+          echo "$HOME/bin" >> "$GITHUB_PATH"
+
+      - name: Check Java and repo
+        run: |
+          java -version
+          repo --version
+
+      # ------------------------------------------------------------
+      # IMPORTANT:
+      # Launcher3 is an Android Soong project.
+      # It cannot be compiled from this repository alone.
+      #
+      # The Android/MistOS/Lineage build tree must be supplied here.
+      # ------------------------------------------------------------
+
+      - name: Stop before Android build tree
+        run: |
+          echo "Launcher3 source is present."
+          echo "Android.bp detected."
+          echo ""
+          echo "A complete Android build tree is required"
+          echo "to resolve Launcher3 dependencies."
+          echo ""
+          echo "Next step: add the correct MistOS/Infinity-X manifest."
+          exit 1
