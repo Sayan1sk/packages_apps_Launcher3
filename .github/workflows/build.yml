@@ -1,79 +1,151 @@
-name: Build Launcher3
+name: Build MistOS Launcher3
 
 on:
   workflow_dispatch:
-  push:
-    branches:
-      - "16.2"
+
+permissions:
+  contents: read
+
+env:
+  ROM_MANIFEST: https://github.com/Project-Mist-OS/manifest.git
+  ROM_BRANCH: 16.2
+  LAUNCHER_REPO: https://github.com/Sayan1sk/packages_apps_Launcher3.git
+  LAUNCHER_BRANCH: 16.2
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    name: Build Launcher3QuickStep
+    runs-on: ubuntu-24.04
 
     steps:
-      - name: Checkout Launcher3
-        uses: actions/checkout@v6
-        with:
-          fetch-depth: 1
-
-      - name: Show source
+      - name: Free disk space
         run: |
-          echo "Launcher3 source:"
-          pwd
-          ls -la
-          test -f Android.bp
-          test -f AndroidManifest.xml
+          sudo rm -rf /usr/local/lib/android
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo apt-get clean
 
-      - name: Install build dependencies
+      - name: Install dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y \
-            git \
-            git-lfs \
-            python3 \
-            unzip \
-            zip \
-            rsync \
+            adb \
             bc \
             bison \
             build-essential \
+            ccache \
+            curl \
             flex \
+            g++ \
+            gcc \
+            git \
+            git-lfs \
+            gnupg \
             gperf \
-            libxml2-utils \
-            lz4 \
-            libncurses5 \
-            libssl-dev \
+            imagemagick \
+            lib32ncurses6 \
+            lib32readline-dev \
+            lib32z1 \
+            libc6-dev-i386 \
             libelf-dev \
-            openjdk-17-jdk
+            liblz4-tool \
+            libncurses5 \
+            libncurses6 \
+            libncurses-dev \
+            libssl-dev \
+            lz4 \
+            openjdk-17-jdk \
+            pngcrush \
+            python3 \
+            python3-pip \
+            rsync \
+            unzip \
+            xsltproc \
+            zip \
+            zlib1g-dev
 
-      - name: Install repo
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions"
+          git config --global user.email "github-actions@github.com"
+          git lfs install
+
+      - name: Install repo tool
         run: |
           mkdir -p "$HOME/bin"
-          curl https://storage.googleapis.com/git-repo-downloads/repo \
+
+          curl -L \
+            https://storage.googleapis.com/git-repo-downloads/repo \
             -o "$HOME/bin/repo"
-          chmod a+x "$HOME/bin/repo"
+
+          chmod +x "$HOME/bin/repo"
+
           echo "$HOME/bin" >> "$GITHUB_PATH"
 
-      - name: Check Java and repo
+      - name: Check toolchain
         run: |
           java -version
+          python3 --version
+          git --version
           repo --version
 
-      # ------------------------------------------------------------
-      # IMPORTANT:
-      # Launcher3 is an Android Soong project.
-      # It cannot be compiled from this repository alone.
-      #
-      # The Android/MistOS/Lineage build tree must be supplied here.
-      # ------------------------------------------------------------
-
-      - name: Stop before Android build tree
+      - name: Initialize MistOS source
         run: |
-          echo "Launcher3 source is present."
-          echo "Android.bp detected."
-          echo ""
-          echo "A complete Android build tree is required"
-          echo "to resolve Launcher3 dependencies."
-          echo ""
-          echo "Next step: add the correct MistOS/Infinity-X manifest."
-          exit 1
+          mkdir -p "$GITHUB_WORKSPACE/rom"
+          cd "$GITHUB_WORKSPACE/rom"
+
+          repo init \
+            -u "$ROM_MANIFEST" \
+            -b "$ROM_BRANCH" \
+            --depth=1 \
+            --no-repo-verify
+
+      - name: Sync Android source
+        working-directory: rom
+        run: |
+          repo sync \
+            --force-sync \
+            --no-clone-bundle \
+            --no-tags \
+            --optimized-fetch \
+            -j2
+
+      - name: Replace Launcher3 with your source
+        working-directory: rom
+        run: |
+          rm -rf packages/apps/Launcher3
+
+          git clone \
+            --depth=1 \
+            --branch "$LAUNCHER_BRANCH" \
+            "$LAUNCHER_REPO" \
+            packages/apps/Launcher3
+
+          rm -rf packages/apps/Launcher3/.git
+
+      - name: Verify Launcher3 source
+        working-directory: rom
+        run: |
+          test -f packages/apps/Launcher3/Android.bp
+          test -f packages/apps/Launcher3/AndroidManifest.xml
+          test -f packages/apps/Launcher3/quickstep/Android.bp
+
+          echo "Launcher3 source:"
+          du -sh packages/apps/Launcher3
+
+          echo "Android.bp:"
+          grep -n 'name: "Launcher3QuickStep"' \
+            packages/apps/Launcher3/quickstep/../Android.bp \
+            packages/apps/Launcher3/Android.bp || true
+
+      - name: Setup build environment
+        working-directory: rom
+        run: |
+          source build/envsetup.sh
+
+          echo "Build environment loaded."
+
+          lunch
+
+      - name: Build Launcher3QuickStep
+       
